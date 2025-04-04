@@ -7,6 +7,7 @@ edition = "2024"
 cfg-if = "1.0.0"
 env_logger = "0.11.8"
 log = "0.4.27"
+nalgebra = "0.33.2"
 wgpu = "24.0.3"
 winit = "0.30.9"
 
