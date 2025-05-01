@@ -1,47 +1,10 @@
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import argparse
-import numpy as np
-
-
-def gaussian_kernel(size: int, sigma: float) -> np.ndarray:
-    """Generates a (size x size) Gaussian kernel."""
-    ax = np.linspace(-(size // 2), size // 2, size)
-    xx, yy = np.meshgrid(ax, ax)
-    kernel = np.exp(-(xx**2 + yy**2) / (2. * sigma**2))
-    return kernel / np.sum(kernel)
-
-
-def convolve2d(image: np.ndarray, kernel: np.ndarray) -> np.ndarray:
-    """Convolves a 2D image with a kernel."""
-    image_h, image_w = image.shape
-    kernel_w, kernel_h = kernel.shape
-    pad_w, pad_h = kernel_h // 2, kernel_w // 2
-
-    padded_image = np.pad(
-        image, ((pad_h, pad_h), (pad_w, pad_w)), mode='reflect')
-    result = np.zeros_like(image)
-
-    for i in range(image_h):
-        for j in range(image_w):
-            region = padded_image[i:i+kernel_h, j:j+kernel_w]
-            result[i, j] = np.sum(region * kernel)
-
-    return result
-
-
-def apply_gaussian_blur(img: np.ndarray, kernel_size=5, sigma=1.0) -> np.ndarray:
-    kernel = gaussian_kernel(kernel_size, sigma)
-    if img.ndim == 2:  # Grayscale
-        return convolve2d(img, kernel)
-    elif img.ndim == 3:  # RGB
-        return np.stack([convolve2d(img[:, :, c], kernel) for c in range(img.shape[2])], axis=2)
-
-
-def grayscale(img):
-    if img.ndim == 3:
-        return np.dot(img[..., :3], [0.2989, 0.5870, 0.1140])
-    return img.copy()
+from grayscale import grayscale
+from gaussian import gaussian_kernel
+from common import convolve2d
+import cv2
 
 
 def display_image(image_path):
@@ -53,27 +16,21 @@ def display_image(image_path):
     """
 
     try:
-        edge_detection_kernel = np.array([
-            [-1, -1, -1],
-            [-1, 8, -1],
-            [-1, -1, -1]
-        ])
         # Read the image
-        img = mpimg.imread(image_path)
+        img = cv2.cvtColor(cv2.imread(image_path), cv2.COLOR_BGR2RGB)
 
         height, width, channels = img.shape
         print(f"Image dimensions: {width}x{height}, Channels: {channels}")
-        gray = grayscale(img)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        kerne_size = 9
-        sigma = 2.0
-        blurred = apply_gaussian_blur(
-            gray, kernel_size=kerne_size, sigma=sigma)
-        edges = convolve2d(blurred, edge_detection_kernel)
+        kernel_size = 3
+        sigma = 1.4
+        blurred = cv2.GaussianBlur(gray, (kernel_size, kernel_size), sigma)
+        edges = cv2.Canny(blurred, threshold1=100, threshold2=200)
 
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 5))
 
-        ax1.imshow(img[..., :3])
+        ax1.imshow(img)
         ax1.set_title("Original", pad=10)
         ax1.grid(True, linestyle="--", alpha=0.7, color='grey')
 
@@ -83,7 +40,7 @@ def display_image(image_path):
 
         ax3.imshow(blurred, cmap="gray")
         ax3.set_title(
-            f"After gaussian blur (kernel_size={kerne_size},sigma={sigma})")
+            f"After gaussian blur (kernel_size={kernel_size},sigma={sigma})")
         ax3.grid(True, linestyle="--", alpha=0.7, color='grey')
 
         ax4.imshow(edges, cmap="gray")
