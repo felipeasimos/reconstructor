@@ -21,3 +21,5 @@ Intuition: imagine the image as a heightmap, gradients then map directly to the 
         3. non-maximum suppresion
         4. double thresholding and edge tracking
     3. hough
+
+### 2. Vanishing Points

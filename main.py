@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import argparse
 import cv2
+import itertools
 
 
 def is_grayscale(img):
@@ -15,7 +16,7 @@ def get_image_in_rgb(img):
         return img.copy()
 
 
-def get_image_with_hough_lines(img, lines):
+def get_image_with_lines(img, lines):
     # Draw the lines on a copy of the original image
     output = get_image_in_rgb(img)
     if lines is not None:
@@ -23,6 +24,32 @@ def get_image_with_hough_lines(img, lines):
             x1, y1, x2, y2 = line[0]
             cv2.line(output, (x1, y1), (x2, y2), (255, 0, 0), 2)
     return output
+
+
+def segment_to_line(line):
+    x1, y1, x2, y2 = line[0]
+    A = y2 - y1
+    B = x1 - x2
+    C = A * x1 + B * y1
+    return A, B, C
+
+
+def get_intersection_point(line1, line2):
+    A1, B1, C1 = segment_to_line(line1)
+    A2, B2, C2 = segment_to_line(line2)
+    determinant = A1 * B2 - A2 * B1
+    if (determinant == 0):
+        return None
+    x = (C1 * B2 - C2 * B1) / determinant
+    y = (A1 * C2 - A2 * C1) / determinant
+    return x, y
+
+
+def get_intersections(lines):
+    for (line1, line2) in itertools.combinations(lines, 2):
+        point = get_intersection_point(line1, line2)
+        if (point is not None):
+            yield point
 
 
 def display_image(image_path):
@@ -41,15 +68,15 @@ def display_image(image_path):
         print(f"Image dimensions: {width}x{height}, Channels: {channels}")
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        kernel_size = 9
-        sigma = 1.0
+        kernel_size = 81
+        sigma = 2.0
         blurred = cv2.GaussianBlur(gray, (kernel_size, kernel_size), sigma)
         edges = cv2.Canny(blurred, threshold1=100,
-                          threshold2=200, apertureSize=3)
+                          threshold2=200)
         lines = cv2.HoughLinesP(
             edges, rho=1, theta=np.pi / 180, threshold=100, minLineLength=50, maxLineGap=10)
-        hough_original = get_image_with_hough_lines(img, lines)
-        hough_edges = get_image_with_hough_lines(edges, lines)
+
+        hough_edges = get_image_with_lines(edges, lines)
 
         fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6)
               ) = plt.subplots(3, 2, figsize=(15, 5))
@@ -74,6 +101,16 @@ def display_image(image_path):
         ax5.imshow(hough_edges, cmap="gray")
         ax5.set_title("hough lines")
         ax5.grid(True, linestyle="--", alpha=0.7, color='grey')
+
+        ax6.imshow(hough_edges, cmap="gray")
+        for point in get_intersections(lines):
+            x, y = point
+            ax6.scatter(x, y, c='red', s=10)
+        height, width = hough_edges.shape[:2]
+        ax6.set_xlim(0, width)
+        ax6.set_ylim(height, 0)
+        ax6.set_title("vanishing points")
+        ax6.grid(True, linestyle="--", alpha=0.7, color='grey')
 
         plt.tight_layout()
         plt.show()
