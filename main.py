@@ -4,21 +4,44 @@ import argparse
 import numpy as np
 
 
+def gaussian_kernel(size: int, sigma: float) -> np.ndarray:
+    """Generates a (size x size) Gaussian kernel."""
+    ax = np.linspace(-(size // 2), size // 2, size)
+    xx, yy = np.meshgrid(ax, ax)
+    kernel = np.exp(-(xx**2 + yy**2) / (2. * sigma**2))
+    return kernel / np.sum(kernel)
+
+
+def convolve2d(image: np.ndarray, kernel: np.ndarray) -> np.ndarray:
+    """Convolves a 2D image with a kernel."""
+    image_h, image_w = image.shape
+    kernel_w, kernel_h = kernel.shape
+    pad_w, pad_h = kernel_h // 2, kernel_w // 2
+
+    padded_image = np.pad(
+        image, ((pad_h, pad_h), (pad_w, pad_w)), mode='reflect')
+    result = np.zeros_like(image)
+
+    for i in range(image_h):
+        for j in range(image_w):
+            region = padded_image[i:i+kernel_h, j:j+kernel_w]
+            result[i, j] = np.sum(region * kernel)
+
+    return result
+
+
+def apply_gaussian_blur(img: np.ndarray, kernel_size=5, sigma=1.0) -> np.ndarray:
+    kernel = gaussian_kernel(kernel_size, sigma)
+    if img.ndim == 2:  # Grayscale
+        return convolve2d(img, kernel)
+    elif img.ndim == 3:  # RGB
+        return np.stack([convolve2d(img[:, :, c], kernel) for c in range(img.shape[2])], axis=2)
+
+
 def grayscale(img):
-    return np.dot(img[..., :3], [0.2989, 0.5870, 0.1140]) if img.ndim == 3 else img.copy()
-
-
-def convolution(img, kernel):
-    pad_size = kernel.shape[0] // 2
-    padded = np.pad(img, pad_size, mode='reflect')
-
-    # Initialize output and apply convolution
-    output = np.zeros_like(img)
-    for i in range(img.shape[0]):
-        for j in range(img.shape[1]):
-            region = padded[i:i+3, j:j+3]  # 3x3 window for 3x3 kernel
-            output[i, j] = np.sum(region * kernel)
-    return np.clip(output, 0, 1)
+    if img.ndim == 3:
+        return np.dot(img[..., :3], [0.2989, 0.5870, 0.1140])
+    return img.copy()
 
 
 def display_image(image_path):
@@ -30,7 +53,7 @@ def display_image(image_path):
     """
 
     try:
-        kernel = np.array([
+        edge_detection_kernel = np.array([
             [-1, -1, -1],
             [-1, 8, -1],
             [-1, -1, -1]
@@ -41,9 +64,14 @@ def display_image(image_path):
         height, width, channels = img.shape
         print(f"Image dimensions: {width}x{height}, Channels: {channels}")
         gray = grayscale(img)
-        output = convolution(gray, kernel)
 
-        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 5))
+        kerne_size = 9
+        sigma = 2.0
+        blurred = apply_gaussian_blur(
+            gray, kernel_size=kerne_size, sigma=sigma)
+        edges = convolve2d(blurred, edge_detection_kernel)
+
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 5))
 
         ax1.imshow(img[..., :3])
         ax1.set_title("Original", pad=10)
@@ -53,9 +81,14 @@ def display_image(image_path):
         ax2.set_title("Grayscale", pad=10)
         ax2.grid(True, linestyle="--", alpha=0.7, color='grey')
 
-        ax3.imshow(output, cmap="gray")
-        ax3.set_title("After edge detection kernel", pad=10)
+        ax3.imshow(blurred, cmap="gray")
+        ax3.set_title(
+            f"After gaussian blur (kernel_size={kerne_size},sigma={sigma})")
         ax3.grid(True, linestyle="--", alpha=0.7, color='grey')
+
+        ax4.imshow(edges, cmap="gray")
+        ax4.set_title("After edge detection kernel")
+        ax4.grid(True, linestyle="--", alpha=0.7, color='grey')
 
         plt.tight_layout()
         plt.show()
