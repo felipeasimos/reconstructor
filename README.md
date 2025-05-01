@@ -20,3 +20,4 @@ Intuition: imagine the image as a heightmap, gradients then map directly to the 
             * combined we can get the actual direction of change (gradient direction and magnitude)
         3. non-maximum suppresion
         4. double thresholding and edge tracking
+    3. hough
