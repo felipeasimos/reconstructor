@@ -3,6 +3,7 @@ import numpy as np
 import argparse
 import cv2
 import itertools
+from jlinkage import jlinkage_vanish_points
 
 
 def is_grayscale(img):
@@ -89,42 +90,31 @@ def display_image(image_path):
             edges, rho=3, theta=np.pi / 180, threshold=150, minLineLength=100, maxLineGap=10)
 
         hough_edges = get_image_with_lines(edges, lines)
+
         intersection_points = list(get_intersections(lines))
         print(f"{len(intersection_points)} intersection points found")
+        vps = intersection_points
+        print(f"{len(vps)} vanishing points found")
 
-        fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6)
-              ) = plt.subplots(3, 2, figsize=(15, 5))
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 5))
 
         ax1.imshow(img)
         ax1.set_title("Original")
         ax1.grid(True, linestyle="--", alpha=0.7, color='grey')
 
-        ax2.imshow(gray, cmap="gray")
-        ax2.set_title("Grayscale")
-        ax2.grid(True, linestyle="--", alpha=0.7, color='grey')
-
-        ax3.imshow(blurred, cmap="gray")
-        ax3.set_title(
-            f"After gaussian blur (kernel_size={kernel_size},sigma={sigma})")
-        ax3.grid(True, linestyle="--", alpha=0.7, color='grey')
-
-        ax4.imshow(edges, cmap="gray")
-        ax4.set_title("After edge detection kernel")
-        ax4.grid(True, linestyle="--", alpha=0.7, color='grey')
-
-        ax5.imshow(hough_edges, cmap="gray")
-        ax5.set_title("hough lines")
-        ax5.grid(True, linestyle="--", alpha=0.7, color='grey')
-
-        ax6.imshow(hough_edges, cmap="gray")
+        ax2.imshow(hough_edges, cmap="gray")
         for point in intersection_points:
             x, y = point
-            ax6.scatter(x, y, c='red', s=10)
+            ax2.scatter(x, y, c='blue', s=1)
+        for point in vps:
+            x, y = point
+            ax2.scatter(x, y, c='yellow', s=1)
         height, width = hough_edges.shape[:2]
-        ax6.set_xlim(0, width)
-        ax6.set_ylim(height, 0)
-        ax6.set_title("vanishing points")
-        ax6.grid(True, linestyle="--", alpha=0.7, color='grey')
+        ax2.set_xlim(0, width)
+        ax2.set_ylim(height, 0)
+        ax2.set_title(
+            "hough lines with intersection(blue) and vanishing points(yellow)")
+        ax2.grid(True, linestyle="--", alpha=0.7, color='grey')
 
         plt.tight_layout()
         plt.show()
