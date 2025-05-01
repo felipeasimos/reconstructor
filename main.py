@@ -34,12 +34,24 @@ def segment_to_line(line):
     return A, B, C
 
 
+def direction_vector(segment):
+    x1, y1, x2, y2 = segment[0]
+    return x2 - x1, y2 - y1
+
+
 def get_intersection_point(line1, line2):
     A1, B1, C1 = segment_to_line(line1)
     A2, B2, C2 = segment_to_line(line2)
-    determinant = A1 * B2 - A2 * B1
-    if (determinant == 0):
+    # v1 x v2 = ||v1|| ||v2|| sin(theta)
+    v1 = direction_vector(line1)
+    v2 = direction_vector(line2)
+    cross = abs(v1[0] * v2[1] - v1[1] * v2[0])
+    len1 = np.hypot(*v1)
+    len2 = np.hypot(*v2)
+    sin_theta = cross / (len1 * len2)
+    if (abs(sin_theta) < 0.1):
         return None
+    determinant = A1 * B2 - A2 * B1
     x = (C1 * B2 - C2 * B1) / determinant
     y = (A1 * C2 - A2 * C1) / determinant
     return x, y
@@ -68,15 +80,17 @@ def display_image(image_path):
         print(f"Image dimensions: {width}x{height}, Channels: {channels}")
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        kernel_size = 81
-        sigma = 2.0
+        kernel_size = 9
+        sigma = 1.4
         blurred = cv2.GaussianBlur(gray, (kernel_size, kernel_size), sigma)
         edges = cv2.Canny(blurred, threshold1=100,
                           threshold2=200)
         lines = cv2.HoughLinesP(
-            edges, rho=1, theta=np.pi / 180, threshold=100, minLineLength=50, maxLineGap=10)
+            edges, rho=3, theta=np.pi / 180, threshold=150, minLineLength=100, maxLineGap=10)
 
         hough_edges = get_image_with_lines(edges, lines)
+        intersection_points = list(get_intersections(lines))
+        print(f"{len(intersection_points)} intersection points found")
 
         fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6)
               ) = plt.subplots(3, 2, figsize=(15, 5))
@@ -103,7 +117,7 @@ def display_image(image_path):
         ax5.grid(True, linestyle="--", alpha=0.7, color='grey')
 
         ax6.imshow(hough_edges, cmap="gray")
-        for point in get_intersections(lines):
+        for point in intersection_points:
             x, y = point
             ax6.scatter(x, y, c='red', s=10)
         height, width = hough_edges.shape[:2]
