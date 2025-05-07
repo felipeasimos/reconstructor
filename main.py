@@ -3,7 +3,7 @@ import numpy as np
 import argparse
 import cv2
 import itertools
-from jlinkage import jlinkage_vanish_points
+# from jlinkage import jlinkage_vanish_points
 
 
 def is_grayscale(img):
@@ -83,11 +83,12 @@ def display_image(image_path):
 
         kernel_size = 9
         sigma = 1.4
-        blurred = cv2.GaussianBlur(gray, (kernel_size, kernel_size), sigma)
+        blurred = cv2.bilateralFilter(gray, 8, 100, 100)
+        # blurred = cv2.GaussianBlur(gray, (kernel_size, kernel_size), sigma)
         edges = cv2.Canny(blurred, threshold1=100,
                           threshold2=200)
         lines = cv2.HoughLinesP(
-            edges, rho=3, theta=np.pi / 180, threshold=150, minLineLength=100, maxLineGap=10)
+            edges, rho=1, theta=np.pi / 360, threshold=100, minLineLength=120, maxLineGap=50)
 
         hough_edges = get_image_with_lines(edges, lines)
 
