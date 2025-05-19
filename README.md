@@ -1,5 +1,12 @@
 ## 3D Reconstruction of an image (Manhattan-like)
 
+How to run:
+
+```
+pip3 install -r requirements.txt
+python3 main.py IMAGE_PATH
+```
+
 ### 1. Edge Detection
 
 #### Whare are image gradients?
