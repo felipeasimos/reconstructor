@@ -31,7 +31,8 @@ class RANSAC:
             maybe_inliers = ids[: self.points_param] # Get the first 10 points
             maybe_model = copy(self.model).fit(X[maybe_inliers], y[maybe_inliers])
 
-            # Test if the loss it's smaller than the threshold 
+            # Test if the loss it's smaller than the threshold
+            # [ids][self.points_param] --> Label 
             thresholded = (
                 self.loss(y[ids][self.points_param :], maybe_model.predict(X[ids][self.points_param :]))
                 < self.threshold
