@@ -3,8 +3,7 @@ import numpy as np
 import argparse
 import cv2
 import itertools
-# from jlinkage import jlinkage_vanish_points
-
+from ransac import ransac_line_clusters
 
 def is_grayscale(img):
     return len(img.shape) == 2
@@ -83,18 +82,29 @@ def display_image(image_path):
 
         kernel_size = 9
         sigma = 1.4
-        blurred = cv2.bilateralFilter(gray, 8, 100, 100)
-        # blurred = cv2.GaussianBlur(gray, (kernel_size, kernel_size), sigma)
+        # blurred = cv2.bilateralFilter(gray, 8, 100, 100)
+        blurred = cv2.GaussianBlur(gray, (kernel_size, kernel_size), sigma)
         edges = cv2.Canny(blurred, threshold1=100,
                           threshold2=200)
         lines = cv2.HoughLinesP(
-            edges, rho=1, theta=np.pi / 360, threshold=100, minLineLength=120, maxLineGap=50)
+            edges, rho=1.5, theta=np.pi / 360, threshold=100, minLineLength=20, maxLineGap=10)
 
         hough_edges = get_image_with_lines(edges, lines)
 
-        intersection_points = list(get_intersections(lines))
+        intersection_points = []
+        vps = []
+
+        clusters = ransac_line_clusters(lines, angle_threshold=np.deg2rad(10), max_clusters=3)
+
+        for cluster in clusters:
+            intersections = list(get_intersections(cluster))
+            intersection_points.extend(intersections)
+
+            if intersections:
+                vp = np.mean(intersections, axis=0)
+                vps.append(vp)
+
         print(f"{len(intersection_points)} intersection points found")
-        vps = intersection_points
         print(f"{len(vps)} vanishing points found")
 
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 5))
@@ -106,10 +116,10 @@ def display_image(image_path):
         ax2.imshow(hough_edges, cmap="gray")
         for point in intersection_points:
             x, y = point
-            ax2.scatter(x, y, c='blue', s=1)
+            ax2.scatter(x, y, c='blue', s=10)
         for point in vps:
             x, y = point
-            ax2.scatter(x, y, c='yellow', s=1)
+            ax2.scatter(x, y, c='yellow', s=10)
         height, width = hough_edges.shape[:2]
         ax2.set_xlim(0, width)
         ax2.set_ylim(height, 0)
