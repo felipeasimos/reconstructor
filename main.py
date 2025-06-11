@@ -63,6 +63,28 @@ def get_intersections(lines):
         if (point is not None):
             yield point
 
+def apply_canny(image, kernel_size, sigma):
+    blurred = cv2.GaussianBlur(image, (kernel_size, kernel_size), sigma)
+    edges = cv2.Canny(blurred, threshold1=100,
+                          threshold2=200)
+    return (blurred, edges)
+
+def apply_ransac(lines, angle_threshold, max_clusters):
+    intersection_points = []
+    vps = []
+
+    clusters = ransac_line_clusters(lines, angle_threshold, max_clusters)
+
+    for cluster in clusters:
+        intersections = list(get_intersections(cluster))
+        intersection_points.extend(intersections)
+
+        if intersections:
+            vp = np.mean(intersections, axis=0)
+            vps.append(vp)
+
+    return (vps, intersection_points)
+
 
 def display_image(image_path):
     """
@@ -80,32 +102,16 @@ def display_image(image_path):
         print(f"Image dimensions: {width}x{height}, Channels: {channels}")
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        kernel_size = 9
-        sigma = 1.4
-        # blurred = cv2.bilateralFilter(gray, 8, 100, 100)
-        blurred = cv2.GaussianBlur(gray, (kernel_size, kernel_size), sigma)
-        edges = cv2.Canny(blurred, threshold1=100,
-                          threshold2=200)
+        blurred, edges = apply_canny(gray, kernel_size=9, sigma=1.4)
         lines = cv2.HoughLinesP(
             edges, rho=1.5, theta=np.pi / 360, threshold=100, minLineLength=20, maxLineGap=10)
 
         hough_edges = get_image_with_lines(edges, lines)
 
-        intersection_points = []
-        vps = []
+        vps, intersection_points = apply_ransac(lines, angle_threshold=np.deg2rad(10), max_clusters=3) 
 
-        clusters = ransac_line_clusters(lines, angle_threshold=np.deg2rad(10), max_clusters=3)
-
-        for cluster in clusters:
-            intersections = list(get_intersections(cluster))
-            intersection_points.extend(intersections)
-
-            if intersections:
-                vp = np.mean(intersections, axis=0)
-                vps.append(vp)
-
-        print(f"{len(intersection_points)} intersection points found")
-        print(f"{len(vps)} vanishing points found")
+        print(f"{len(intersection_points)} intersection points found.")
+        print(f"{len(vps)} vanishing points found.")
 
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 5))
 
@@ -124,7 +130,7 @@ def display_image(image_path):
         ax2.set_xlim(0, width)
         ax2.set_ylim(height, 0)
         ax2.set_title(
-            "hough lines with intersection(blue) and vanishing points(yellow)")
+            "Hough lines with intersection (blue) and vanishing points (yellow)")
         ax2.grid(True, linestyle="--", alpha=0.7, color='grey')
 
         plt.tight_layout()
