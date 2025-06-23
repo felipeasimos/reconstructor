@@ -1,23 +1,35 @@
+"""
+Image line detection and vanishing point analysis using Hough transform and RANSAC clustering.
+
+This module provides functionality to detect lines in images, find their intersections,
+and identify vanishing points using computer vision techniques.
+"""
+
+import argparse
+import itertools
+from typing import List, Optional, Tuple, Generator
+
+import cv2
 import matplotlib.pyplot as plt
 import numpy as np
-import argparse
-import cv2
-import itertools
+
 from ransac import ransac_line_clusters
 
-def is_grayscale(img):
+
+def is_grayscale(img: np.ndarray) -> bool:
+    """Check if an image is grayscale."""
     return len(img.shape) == 2
 
 
-def get_image_in_rgb(img):
+def get_image_in_rgb(img: np.ndarray) -> np.ndarray:
+    """Convert image to RGB format."""
     if is_grayscale(img):
         return cv2.cvtColor(img.copy(), cv2.COLOR_GRAY2RGB)
-    else:
-        return img.copy()
+    return img.copy()
 
 
-def get_image_with_lines(img, lines):
-    # Draw the lines on a copy of the original image
+def get_image_with_lines(img: np.ndarray, lines: Optional[np.ndarray]) -> np.ndarray:
+    """Draw detected lines on a copy of the original image."""
     output = get_image_in_rgb(img)
     if lines is not None:
         for line in lines:
@@ -26,7 +38,8 @@ def get_image_with_lines(img, lines):
     return output
 
 
-def segment_to_line(line):
+def segment_to_line(line: np.ndarray) -> Tuple[float, float, float]:
+    """Convert line segment to line equation coefficients Ax + By = C."""
     x1, y1, x2, y2 = line[0]
     A = y2 - y1
     B = x1 - x2
@@ -34,127 +47,309 @@ def segment_to_line(line):
     return A, B, C
 
 
-def direction_vector(segment):
+def direction_vector(segment: np.ndarray) -> Tuple[float, float]:
+    """Get direction vector of a line segment."""
     x1, y1, x2, y2 = segment[0]
     return x2 - x1, y2 - y1
 
 
-def get_intersection_point(line1, line2):
+def get_intersection_point(line1: np.ndarray, line2: np.ndarray) -> Optional[Tuple[float, float]]:
+    """
+    Find intersection point between two line segments.
+    
+    Returns None if lines are nearly parallel (sin(theta) < 0.1).
+    """
     A1, B1, C1 = segment_to_line(line1)
     A2, B2, C2 = segment_to_line(line2)
-    # v1 x v2 = ||v1|| ||v2|| sin(theta)
+    
+    # Check if lines are nearly parallel using cross product
     v1 = direction_vector(line1)
     v2 = direction_vector(line2)
     cross = abs(v1[0] * v2[1] - v1[1] * v2[0])
     len1 = np.hypot(*v1)
     len2 = np.hypot(*v2)
-    sin_theta = cross / (len1 * len2)
-    if (abs(sin_theta) < 0.1):
+    
+    if len1 == 0 or len2 == 0:
         return None
+    
+    sin_theta = cross / (len1 * len2)
+    if abs(sin_theta) < 0.1:
+        return None
+    
     determinant = A1 * B2 - A2 * B1
+    if abs(determinant) < 1e-10:  # Lines are parallel
+        return None
+    
     x = (C1 * B2 - C2 * B1) / determinant
     y = (A1 * C2 - A2 * C1) / determinant
     return x, y
 
 
-def get_intersections(lines):
-    for (line1, line2) in itertools.combinations(lines, 2):
+def get_intersections(lines: List[np.ndarray]) -> Generator[Tuple[float, float], None, None]:
+    """Generate all intersection points between pairs of lines."""
+    for line1, line2 in itertools.combinations(lines, 2):
         point = get_intersection_point(line1, line2)
-        if (point is not None):
+        if point is not None:
             yield point
 
 
-def display_image(image_path):
+def process_image(image_path: str) -> None:
     """
-    Reads and displays a PNG image using matplotlib.
-
-    Parameters:
-    image_path (str): Path to the PNG image file.
+    Process an image to detect lines and find vanishing points.
+    
+    Args:
+        image_path: Path to the image file
     """
-
+    # Image processing parameters
+    KERNEL_SIZE = 9
+    SIGMA = 1.4
+    CANNY_THRESHOLD1 = 100
+    CANNY_THRESHOLD2 = 200
+    HOUGH_RHO = 1.5
+    HOUGH_THETA = np.pi / 360
+    HOUGH_THRESHOLD = 100
+    MIN_LINE_LENGTH = 10
+    MAX_LINE_GAP = 10
+    ANGLE_THRESHOLD = np.deg2rad(10)
+    MAX_CLUSTERS = 3
+    
     try:
-        # Read the image
-        img = cv2.cvtColor(cv2.imread(image_path), cv2.COLOR_BGR2RGB)
-
+        # Read and convert image
+        img = cv2.imread(image_path)
+        if img is None:
+            raise FileNotFoundError(f"Could not load image: {image_path}")
+        
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         height, width, channels = img.shape
         print(f"Image dimensions: {width}x{height}, Channels: {channels}")
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-        kernel_size = 9
-        sigma = 1.4
-        # blurred = cv2.bilateralFilter(gray, 8, 100, 100)
-        blurred = cv2.GaussianBlur(gray, (kernel_size, kernel_size), sigma)
-        edges = cv2.Canny(blurred, threshold1=100,
-                          threshold2=200)
+        
+        # Convert to grayscale and apply preprocessing
+        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+        blurred = cv2.GaussianBlur(gray, (KERNEL_SIZE, KERNEL_SIZE), SIGMA)
+        
+        # Edge detection and line detection
+        edges = cv2.Canny(blurred, CANNY_THRESHOLD1, CANNY_THRESHOLD2)
         lines = cv2.HoughLinesP(
-            edges, rho=1.5, theta=np.pi / 360, threshold=100, minLineLength=20, maxLineGap=10)
-
+            edges, 
+            rho=HOUGH_RHO, 
+            theta=HOUGH_THETA, 
+            threshold=HOUGH_THRESHOLD,
+            minLineLength=MIN_LINE_LENGTH, 
+            maxLineGap=MAX_LINE_GAP
+        )
+        
+        if lines is None:
+            print("No lines detected in the image")
+            return
+        
         hough_edges = get_image_with_lines(edges, lines)
-
+        
+        # Cluster lines and find vanishing points
         intersection_points = []
-        vps = []
-
-        clusters = ransac_line_clusters(lines, angle_threshold=np.deg2rad(10), max_clusters=3)
-
+        vanishing_points = []
+        
+        clusters = ransac_line_clusters(lines, ANGLE_THRESHOLD, MAX_CLUSTERS)
+        
         for cluster in clusters:
             intersections = list(get_intersections(cluster))
             intersection_points.extend(intersections)
-
+            
             if intersections:
                 vp = np.mean(intersections, axis=0)
-                vps.append(vp)
-
+                vanishing_points.append(vp)
+        
         print(f"{len(intersection_points)} intersection points found")
-        print(f"{len(vps)} vanishing points found")
-
-        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 5))
-
-        ax1.imshow(img)
-        ax1.set_title("Original")
-        ax1.grid(True, linestyle="--", alpha=0.7, color='grey')
-
-        ax2.imshow(hough_edges, cmap="gray")
-        for point in intersection_points:
-            x, y = point
-            ax2.scatter(x, y, c='blue', s=10)
-        for point in vps:
-            x, y = point
-            ax2.scatter(x, y, c='yellow', s=10)
-        height, width = hough_edges.shape[:2]
-        ax2.set_xlim(0, width)
-        ax2.set_ylim(height, 0)
-        ax2.set_title(
-            "hough lines with intersection(blue) and vanishing points(yellow)")
-        ax2.grid(True, linestyle="--", alpha=0.7, color='grey')
-
-        plt.tight_layout()
-        plt.show()
-
-        # # Display the image
-        # plt.figure(figsize=(10, 6))  # Optional: Adjust figure size
-        # plt.imshow(img)
-        # plt.axis('on')  # Turn off axis labels
-        # plt.show()
-
-    except FileNotFoundError:
-        print(f"Error: The file '{image_path}' was not found.")
+        print(f"{len(vanishing_points)} vanishing points found")
+        
+        # Display results with interactive viewer
+        _display_results(img, gray, blurred, edges, hough_edges, intersection_points, vanishing_points)
+        
+    except FileNotFoundError as e:
+        print(f"Error: {e}")
     except Exception as e:
         print(f"An error occurred: {e}")
-        raise e
+        raise
 
 
-def main():
+class ImageViewer:
+    """Interactive image viewer for navigating through processing steps."""
+    
+    def __init__(self, processing_steps: List[dict]):
+        self.steps = processing_steps
+        self.current_step = 0
+        self.fig, self.ax = plt.subplots(figsize=(12, 8))
+        self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)
+        self._update_display()
+        
+    def on_key_press(self, event):
+        """Handle keyboard navigation."""
+        if event.key == 'right' or event.key == 'n':
+            self.next_step()
+        elif event.key == 'left' or event.key == 'p':
+            self.previous_step()
+        elif event.key == 'q':
+            plt.close(self.fig)
+            
+    def next_step(self):
+        """Move to the next processing step."""
+        if self.current_step < len(self.steps) - 1:
+            self.current_step += 1
+            self._update_display()
+            
+    def previous_step(self):
+        """Move to the previous processing step."""
+        if self.current_step > 0:
+            self.current_step -= 1
+            self._update_display()
+            
+    def _update_display(self):
+        """Update the display with the current step."""
+        self.ax.clear()
+        
+        step = self.steps[self.current_step]
+        
+        # Display the image
+        if step['cmap']:
+            self.ax.imshow(step['image'], cmap=step['cmap'])
+        else:
+            self.ax.imshow(step['image'])
+            
+        # Add overlays (points, lines, etc.)
+        if 'overlays' in step:
+            for overlay in step['overlays']:
+                if overlay['type'] == 'scatter':
+                    self.ax.scatter(
+                        overlay['x'], overlay['y'], 
+                        c=overlay['color'], s=overlay['size'], 
+                        label=overlay['label']
+                    )
+                elif overlay['type'] == 'legend':
+                    self.ax.legend()
+        
+        # Set title and formatting
+        step_info = f"Step {self.current_step + 1}/{len(self.steps)}: {step['title']}"
+        self.ax.set_title(step_info, fontsize=14, fontweight='bold')
+        
+        if step.get('grid', False):
+            self.ax.grid(True, linestyle="--", alpha=0.7, color='grey')
+            
+        # Add navigation instructions
+        nav_text = "Navigation: ← / 'p' = Previous, → / 'n' = Next, 'q' = Quit"
+        self.fig.text(0.5, 0.02, nav_text, ha='center', fontsize=10, 
+                     bbox=dict(boxstyle="round,pad=0.3", facecolor="lightgray", alpha=0.8))
+        
+        self.fig.canvas.draw()
+        
+    def show(self):
+        """Display the viewer."""
+        plt.tight_layout()
+        plt.subplots_adjust(bottom=0.1)  # Make room for navigation text
+        plt.show()
+
+
+def _display_results(
+    original_img: np.ndarray,
+    gray_img: np.ndarray,
+    blurred_img: np.ndarray,
+    edges: np.ndarray,
+    hough_edges: np.ndarray,
+    intersection_points: List[Tuple[float, float]],
+    vanishing_points: List[Tuple[float, float]]
+) -> None:
+    """Display the processing pipeline results with interactive navigation."""
+    
+    # Prepare processing steps
+    steps = [
+        {
+            'title': 'Original Image',
+            'image': original_img,
+            'cmap': None,
+            'grid': False,
+        },
+        {
+            'title': 'Grayscale Conversion',
+            'image': gray_img,
+            'cmap': 'gray',
+            'grid': True,
+        },
+        {
+            'title': 'Gaussian Blur (Noise Reduction)',
+            'image': blurred_img,
+            'cmap': 'gray',
+            'grid': True,
+        },
+        {
+            'title': 'Canny Edge Detection',
+            'image': edges,
+            'cmap': 'gray',
+            'grid': True,
+        },
+        {
+            'title': 'Hough Line Detection',
+            'image': hough_edges,
+            'cmap': 'gray',
+            'grid': True,
+        }
+    ]
+    
+    # Add final result with intersection and vanishing points
+    overlays = []
+    if intersection_points:
+        x_coords, y_coords = zip(*intersection_points)
+        overlays.append({
+            'type': 'scatter',
+            'x': x_coords,
+            'y': y_coords,
+            'color': 'blue',
+            'size': 15,
+            'label': f'Intersections ({len(intersection_points)})'
+        })
+    
+    if vanishing_points:
+        x_coords, y_coords = zip(*vanishing_points)
+        overlays.append({
+            'type': 'scatter',
+            'x': x_coords,
+            'y': y_coords,
+            'color': 'yellow',
+            'size': 30,
+            'label': f'Vanishing Points ({len(vanishing_points)})'
+        })
+    
+    if overlays:
+        overlays.append({'type': 'legend'})
+    
+    steps.append({
+        'title': 'Final Result: Lines with Intersection & Vanishing Points',
+        'image': hough_edges,
+        'cmap': 'gray',
+        'grid': True,
+        'overlays': overlays
+    })
+    
+    # Create and show the interactive viewer
+    viewer = ImageViewer(steps)
+    print("\n🖼️  Interactive Image Processing Pipeline Viewer")
+    print("📖 Use arrow keys or 'n'/'p' to navigate between steps")
+    print("❌ Press 'q' to quit")
+    viewer.show()
+
+
+def main() -> None:
+    """Main function to parse arguments and process the image."""
     parser = argparse.ArgumentParser(
-        description="Display a PNG image using matplotlib.")
-
+        description="Detect lines and vanishing points in an image using computer vision techniques."
+    )
+    
     parser.add_argument(
         "image_path",
         type=str,
-        help="Path to the PNG image file to display"
+        help="Path to the image file to process"
     )
-
+    
     args = parser.parse_args()
-    display_image(args.image_path)
+    process_image(args.image_path)
 
 
-main()
+if __name__ == "__main__":
+    main()
