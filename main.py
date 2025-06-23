@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from ransac import ransac_line_clusters
+from image_viewer import ImageViewer
 
 
 def is_grayscale(img: np.ndarray) -> bool:
@@ -162,7 +163,7 @@ def process_image(image_path: str) -> None:
         print(f"{len(vanishing_points)} vanishing points found")
         
         # Display results with interactive viewer
-        _display_results(img, gray, blurred, edges, hough_edges, intersection_points, vanishing_points)
+        _display_results_interactive(img, gray, blurred, edges, hough_edges, intersection_points, vanishing_points)
         
     except FileNotFoundError as e:
         print(f"Error: {e}")
@@ -171,83 +172,7 @@ def process_image(image_path: str) -> None:
         raise
 
 
-class ImageViewer:
-    """Interactive image viewer for navigating through processing steps."""
-    
-    def __init__(self, processing_steps: List[dict]):
-        self.steps = processing_steps
-        self.current_step = 0
-        self.fig, self.ax = plt.subplots(figsize=(12, 8))
-        self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)
-        self._update_display()
-        
-    def on_key_press(self, event):
-        """Handle keyboard navigation."""
-        if event.key == 'right' or event.key == 'n':
-            self.next_step()
-        elif event.key == 'left' or event.key == 'p':
-            self.previous_step()
-        elif event.key == 'q':
-            plt.close(self.fig)
-            
-    def next_step(self):
-        """Move to the next processing step."""
-        if self.current_step < len(self.steps) - 1:
-            self.current_step += 1
-            self._update_display()
-            
-    def previous_step(self):
-        """Move to the previous processing step."""
-        if self.current_step > 0:
-            self.current_step -= 1
-            self._update_display()
-            
-    def _update_display(self):
-        """Update the display with the current step."""
-        self.ax.clear()
-        
-        step = self.steps[self.current_step]
-        
-        # Display the image
-        if step['cmap']:
-            self.ax.imshow(step['image'], cmap=step['cmap'])
-        else:
-            self.ax.imshow(step['image'])
-            
-        # Add overlays (points, lines, etc.)
-        if 'overlays' in step:
-            for overlay in step['overlays']:
-                if overlay['type'] == 'scatter':
-                    self.ax.scatter(
-                        overlay['x'], overlay['y'], 
-                        c=overlay['color'], s=overlay['size'], 
-                        label=overlay['label']
-                    )
-                elif overlay['type'] == 'legend':
-                    self.ax.legend()
-        
-        # Set title and formatting
-        step_info = f"Step {self.current_step + 1}/{len(self.steps)}: {step['title']}"
-        self.ax.set_title(step_info, fontsize=14, fontweight='bold')
-        
-        if step.get('grid', False):
-            self.ax.grid(True, linestyle="--", alpha=0.7, color='grey')
-            
-        # Add navigation instructions
-        nav_text = "Navigation: ← / 'p' = Previous, → / 'n' = Next, 'q' = Quit"
-        self.fig.text(0.5, 0.02, nav_text, ha='center', fontsize=10, 
-                     bbox=dict(boxstyle="round,pad=0.3", facecolor="lightgray", alpha=0.8))
-        
-        self.fig.canvas.draw()
-        
-    def show(self):
-        """Display the viewer."""
-        plt.tight_layout()
-        plt.subplots_adjust(bottom=0.1)  # Make room for navigation text
-        plt.show()
-
-
-def _display_results(
+def _display_results_interactive(
     original_img: np.ndarray,
     gray_img: np.ndarray,
     blurred_img: np.ndarray,
@@ -256,82 +181,54 @@ def _display_results(
     intersection_points: List[Tuple[float, float]],
     vanishing_points: List[Tuple[float, float]]
 ) -> None:
-    """Display the processing pipeline results with interactive navigation."""
+    """Display the processing steps using an interactive viewer."""
     
-    # Prepare processing steps
-    steps = [
+    # Prepare images for the viewer
+    images = [
         {
+            'data': original_img,
             'title': 'Original Image',
-            'image': original_img,
-            'cmap': None,
-            'grid': False,
+            'show_grid': False,
+            'show_axis': False,
         },
         {
-            'title': 'Grayscale Conversion',
-            'image': gray_img,
+            'data': gray_img,
+            'title': 'Grayscale Image',
             'cmap': 'gray',
-            'grid': True,
+            'show_grid': True,
+            'show_axis': True,
         },
         {
-            'title': 'Gaussian Blur (Noise Reduction)',
-            'image': blurred_img,
+            'data': blurred_img,
+            'title': 'Gaussian Blurred',
             'cmap': 'gray',
-            'grid': True,
+            'show_grid': True,
+            'show_axis': True,
         },
         {
+            'data': edges,
             'title': 'Canny Edge Detection',
-            'image': edges,
             'cmap': 'gray',
-            'grid': True,
+            'show_grid': True,
+            'show_axis': True,
         },
         {
-            'title': 'Hough Line Detection',
-            'image': hough_edges,
+            'data': hough_edges,
+            'title': 'Detected Lines with Points',
             'cmap': 'gray',
-            'grid': True,
+            'intersection_points': intersection_points,
+            'vanishing_points': vanishing_points,
+            'show_grid': True,
+            'show_axis': True,
         }
     ]
     
-    # Add final result with intersection and vanishing points
-    overlays = []
-    if intersection_points:
-        x_coords, y_coords = zip(*intersection_points)
-        overlays.append({
-            'type': 'scatter',
-            'x': x_coords,
-            'y': y_coords,
-            'color': 'blue',
-            'size': 15,
-            'label': f'Intersections ({len(intersection_points)})'
-        })
-    
-    if vanishing_points:
-        x_coords, y_coords = zip(*vanishing_points)
-        overlays.append({
-            'type': 'scatter',
-            'x': x_coords,
-            'y': y_coords,
-            'color': 'yellow',
-            'size': 30,
-            'label': f'Vanishing Points ({len(vanishing_points)})'
-        })
-    
-    if overlays:
-        overlays.append({'type': 'legend'})
-    
-    steps.append({
-        'title': 'Final Result: Lines with Intersection & Vanishing Points',
-        'image': hough_edges,
-        'cmap': 'gray',
-        'grid': True,
-        'overlays': overlays
-    })
-    
     # Create and show the interactive viewer
-    viewer = ImageViewer(steps)
     print("\n🖼️  Interactive Image Processing Pipeline Viewer")
-    print("📖 Use arrow keys or 'n'/'p' to navigate between steps")
-    print("❌ Press 'q' to quit")
+    print("📖 Use arrow keys (← →) or A/D to navigate between steps")
+    print("❌ Press 'q' or Escape to quit")
+    
+    viewer = ImageViewer(images)
     viewer.show()
 
 
