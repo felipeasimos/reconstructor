@@ -103,9 +103,9 @@ def process_image(image_path: str) -> None:
     """
     # Image processing parameters
     KERNEL_SIZE = 9
-    SIGMA = 1.4
+    SIGMA = 1.2
     CANNY_THRESHOLD1 = 100
-    CANNY_THRESHOLD2 = 200
+    CANNY_THRESHOLD2 = 150
     HOUGH_RHO = 1.5
     HOUGH_THETA = np.pi / 360
     HOUGH_THRESHOLD = 100
@@ -183,11 +183,19 @@ def _display_results_interactive(
 ) -> None:
     """Display the processing steps using an interactive viewer."""
     
+    def manual_line_callback(manual_lines, intersections, vanishing_point):
+        """Callback function to handle manually drawn lines and calculated vanishing points."""
+        print(f"\n📋 Manual Line Analysis Results:")
+        print(f"   Lines drawn: {len(manual_lines)}")
+        print(f"   Intersections found: {len(intersections)}")
+        print(f"   Vanishing point: ({vanishing_point[0]:.2f}, {vanishing_point[1]:.2f})")
+        print(f"   Compare with Hough-based vanishing points: {len(vanishing_points)} found")
+    
     # Prepare images for the viewer
     images = [
         {
             'data': original_img,
-            'title': 'Original Image',
+            'title': 'Original Image - Draw Lines Here (M to toggle)',
             'show_grid': False,
             'show_axis': False,
         },
@@ -214,7 +222,7 @@ def _display_results_interactive(
         },
         {
             'data': hough_edges,
-            'title': 'Detected Lines with Points',
+            'title': 'Hough-Detected Lines with Points',
             'cmap': 'gray',
             'intersection_points': intersection_points,
             'vanishing_points': vanishing_points,
@@ -225,10 +233,11 @@ def _display_results_interactive(
     
     # Create and show the interactive viewer
     print("\n🖼️  Interactive Image Processing Pipeline Viewer")
-    print("📖 Use arrow keys (← →) or A/D to navigate between steps")
+    print("📖 Navigation: Use arrow keys (← →) or A/D to navigate between steps")
+    print("🖊️  Manual Drawing: Press 'M' to toggle drawing mode, 'C' to clear, 'V' to calculate VP")
     print("❌ Press 'q' or Escape to quit")
     
-    viewer = ImageViewer(images)
+    viewer = ImageViewer(images, line_callback=manual_line_callback)
     viewer.show()
 
 
