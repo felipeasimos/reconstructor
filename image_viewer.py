@@ -45,6 +45,7 @@ class ImageViewer:
         self.line_artists = []
         self.vanishing_point_artists = []  # Track VP markers
         self._manual_vp_coords = None  # Store VP coordinates for redrawing
+        self.preview_line = None  # Track preview line while drawing
         
         # Mouse event handlers
         self.press_event = None
@@ -89,6 +90,12 @@ class ImageViewer:
     
     def _disconnect_drawing_events(self):
         """Disconnect mouse events for line drawing."""
+        # Clean up preview line when exiting drawing mode
+        if self.preview_line:
+            self.preview_line.remove()
+            self.preview_line = None
+            self.fig.canvas.draw()
+        
         if self.press_event:
             self.fig.canvas.mpl_disconnect(self.press_event)
         if self.motion_event:
@@ -106,12 +113,30 @@ class ImageViewer:
         """Handle mouse motion for line drawing preview."""
         if not self.drawing_mode or event.inaxes != self.ax or not self.current_line_points:
             return
-        # Could add line preview here if desired
+        
+        # Remove previous preview line
+        if self.preview_line:
+            self.preview_line.remove()
+            self.preview_line = None
+        
+        # Draw preview line from start point to current mouse position
+        start_point = self.current_line_points[0]
+        current_point = (event.xdata, event.ydata)
+        
+        self.preview_line, = self.ax.plot([start_point[0], current_point[0]], 
+                                         [start_point[1], current_point[1]], 
+                                         'r--', linewidth=3, alpha=0.5)
+        self.fig.canvas.draw()
     
     def _on_release(self, event):
         """Handle mouse release to complete line drawing."""
         if not self.drawing_mode or event.inaxes != self.ax or not self.current_line_points:
             return
+        
+        # Remove preview line
+        if self.preview_line:
+            self.preview_line.remove()
+            self.preview_line = None
         
         # Complete the line
         end_point = (event.xdata, event.ydata)
@@ -123,7 +148,7 @@ class ImageViewer:
             line_data = [start_point, end_point]
             self.manual_lines.append(line_data)
             
-            # Draw the line
+            # Draw the final line
             line_artist, = self.ax.plot([start_point[0], end_point[0]], 
                                       [start_point[1], end_point[1]], 
                                       'r-', linewidth=2, alpha=0.8)
@@ -137,6 +162,11 @@ class ImageViewer:
     def _clear_manual_lines(self):
         """Clear all manually drawn lines and vanishing points."""
         self.manual_lines = []
+        
+        # Remove preview line if active
+        if self.preview_line:
+            self.preview_line.remove()
+            self.preview_line = None
         
         # Remove line artists from plot
         for artist in self.line_artists:
@@ -284,7 +314,7 @@ class ImageViewer:
         # Build title with drawing mode indicator
         title_parts = [f"{title} ({self.current_index + 1}/{len(self.images)})"]
         if self.drawing_mode:
-            title_parts.append("🖊️ DRAWING MODE")
+            title_parts.append("DRAWING MODE")
         if self.manual_lines:
             title_parts.append(f"({len(self.manual_lines)} manual lines)")
         
