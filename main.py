@@ -104,8 +104,8 @@ def process_image(image_path: str) -> None:
     # Image processing parameters
     KERNEL_SIZE = 9
     SIGMA = 1.2
-    CANNY_THRESHOLD1 = 100
-    CANNY_THRESHOLD2 = 150
+    CANNY_THRESHOLD1 = 50
+    CANNY_THRESHOLD2 = 100
     HOUGH_RHO = 1.5
     HOUGH_THETA = np.pi / 360
     HOUGH_THRESHOLD = 100
