@@ -228,6 +228,20 @@ def _display_results_interactive(
             'vanishing_points': vanishing_points,
             'show_grid': True,
             'show_axis': True,
+        },
+        {
+            'data': None,
+            'title': '3D Scene Reconstruction - Initial View',
+            'is_3d': True,
+            'show_grid': True,
+            'show_axis': True,
+        },
+        {
+            'data': None,
+            'title': '3D Scene Reconstruction - Final View',
+            'is_3d': True,
+            'show_grid': True,
+            'show_axis': True,
         }
     ]
     

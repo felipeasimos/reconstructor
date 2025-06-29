@@ -7,6 +7,7 @@ a sequence of images using keyboard controls and draw lines manually on images.
 
 from typing import List, Tuple, Dict, Any, Optional, Callable
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 import itertools
 
@@ -266,12 +267,61 @@ class ImageViewer:
     
     def _update_display(self):
         """Update the displayed image."""
-        self.ax.clear()
-        
         current_image = self.images[self.current_index]
         image_data = current_image['data']
         title = current_image['title']
         cmap = current_image.get('cmap', None)
+        is_3d = current_image.get('is_3d', False)
+        
+        # Handle 3D plots
+        if is_3d:
+            # Clear the figure and create new 3D axis
+            self.fig.clear()
+            self.ax = self.fig.add_subplot(111, projection='3d')
+            
+            # Set up empty 3D plot with basic structure
+            # Create a simple coordinate system for now
+            x_range = np.linspace(-5, 5, 10)
+            y_range = np.linspace(-5, 5, 10)
+            z_range = np.linspace(0, 5, 10)
+            
+            # Create grid for visualization
+            X, Y = np.meshgrid(x_range, y_range)
+            Z = np.zeros_like(X)  # Ground plane at z=0
+            
+            # Plot ground plane
+            self.ax.plot_surface(X, Y, Z, alpha=0.3, color='lightgray')
+            
+            # Add coordinate axes
+            self.ax.plot([0, 5], [0, 0], [0, 0], 'r-', linewidth=2, label='X-axis')
+            self.ax.plot([0, 0], [0, 5], [0, 0], 'g-', linewidth=2, label='Y-axis')
+            self.ax.plot([0, 0], [0, 0], [0, 5], 'b-', linewidth=2, label='Z-axis')
+            
+            # Set labels and title
+            self.ax.set_xlabel('X')
+            self.ax.set_ylabel('Y')
+            self.ax.set_zlabel('Z')
+            self.ax.set_title(f"{title} ({self.current_index + 1}/{len(self.images)})")
+            
+            # Set view angle for better visualization
+            self.ax.view_init(elev=20, azim=45)
+            
+            # Add legend
+            self.ax.legend()
+            
+            # Show grid if specified
+            show_grid = current_image.get('show_grid', True)
+            if show_grid:
+                self.ax.grid(True)
+            
+            # Update the display
+            self.fig.canvas.draw()
+            return
+        
+        # Handle 2D images (original logic)
+        # Clear the figure and create new 2D axis
+        self.fig.clear()
+        self.ax = self.fig.add_subplot(111)
         
         # Display the image
         if cmap:
