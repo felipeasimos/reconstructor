@@ -163,7 +163,7 @@ def process_image(image_path: str) -> None:
         print(f"{len(vanishing_points)} vanishing points found")
         
         # Display results with interactive viewer
-        _display_results_interactive(img, gray, blurred, edges, hough_edges, intersection_points, vanishing_points)
+        _display_results_interactive(img, gray, blurred, edges, hough_edges, intersection_points, vanishing_points, lines)
         
     except FileNotFoundError as e:
         print(f"Error: {e}")
@@ -179,7 +179,8 @@ def _display_results_interactive(
     edges: np.ndarray,
     hough_edges: np.ndarray,
     intersection_points: List[Tuple[float, float]],
-    vanishing_points: List[Tuple[float, float]]
+    vanishing_points: List[Tuple[float, float]],
+    lines
 ) -> None:
     """Display the processing steps using an interactive viewer."""
     
@@ -230,15 +231,19 @@ def _display_results_interactive(
             'show_axis': True,
         },
         {
-            'data': None,
+            'data': original_img,
             'title': '3D Scene Reconstruction - Initial View',
+            'vanishing_points': vanishing_points,
+            'lines': lines,
             'is_3d': True,
             'show_grid': True,
             'show_axis': True,
         },
         {
-            'data': None,
+            'data': original_img,
             'title': '3D Scene Reconstruction - Final View',
+            'vanishing_points': vanishing_points,
+            'lines': lines,
             'is_3d': True,
             'show_grid': True,
             'show_axis': True,
